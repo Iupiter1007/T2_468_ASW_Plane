@@ -46,7 +46,7 @@ Wf_W0 = 1.06 * (1 - W6_W0);  % Fuel fraction
 % We/W0 = a * W0^b
 % Default coefficients below are placeholders you can tune to match the aircraft class.
 % military bomber
-raymer.a = 0.93;   % empirical multiplier (tunable)
+raymer.a = 0.97;   % empirical multiplier (tunable)
 raymer.b = -0.07;   % empirical exponent (tunable)
 
 % jet transport
