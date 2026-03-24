@@ -1,0 +1,4 @@
+Leviathan Properties for Testing:
+
+CG ~0.4
+Mass ~145,000 lbs
