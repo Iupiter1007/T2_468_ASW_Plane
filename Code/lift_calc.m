@@ -53,7 +53,7 @@ fprintf('Wing Area (S)        : %.1f ft^2\n', S);
 fprintf('Span (b)             : %.1f ft\n', span);
 fprintf('Reference Length     : %.2f ft\n', rt_c);
 fprintf('Weight (W)           : %.0f lbf\n', W);
-disp("Sref: 1680, bref: 140, cref: 12, alpha: [-2:1:6], Mach: 0.6, Recref: 3e7")
+disp("Sref: 1680, bref: 140, cref: 12, alpha: [-2:1:6], Mach: 0.6, Recref: 3e7, Wet CG 46, Dry CG 47.5")
 
 fprintf('\n=============== CRUISE CONDITION ================\n');
 fprintf('Velocity             : %.1f mph\n', cr.v_mph);
