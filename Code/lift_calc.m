@@ -6,16 +6,24 @@ rt_c = 12;        % reference length [ft]
 W    = 180000;    % weight [lbf]
 
 % AoA vs Cl from OpenVSP (cruise config, no flaps)
-AoA = [-2:1:6]
-Cl  = [-0.040500726182 
- 0.072260968690 
- 0.185042703014 
- 0.297781457583 
- 0.410416932554 
- 0.523346099741 
- 0.636091628608 
- 0.754434779093 
- 0.870844120390]';   % <-- YOU EDIT THIS
+AoA = [-2.000000000000
+-1.000000000000
+ 0.000000000000
+ 1.000000000000
+ 2.000000000000
+ 3.000000000000
+ 4.000000000000
+ 5.000000000000
+ 6.000000000000]';
+Cl  = [0.075240136912
+0.178376862598
+0.278069100687
+0.378288177867
+0.483967895557
+0.589829176542
+0.697588789770
+0.779723129393
+0.773724073137]';   % <-- YOU EDIT THIS
 % Speeds
 cr.v_mph = 475;
 to.v_mph = 145;
@@ -53,7 +61,6 @@ fprintf('Wing Area (S)        : %.1f ft^2\n', S);
 fprintf('Span (b)             : %.1f ft\n', span);
 fprintf('Reference Length     : %.2f ft\n', rt_c);
 fprintf('Weight (W)           : %.0f lbf\n', W);
-disp("Sref: 1680, bref: 140, cref: 12, alpha: [-2:1:6], Mach: 0.6, Recref: 3e7, Wet CG 46, Dry CG 47.5")
 
 fprintf('\n=============== CRUISE CONDITION ================\n');
 fprintf('Velocity             : %.1f mph\n', cr.v_mph);
