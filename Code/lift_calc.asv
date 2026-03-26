@@ -1,0 +1,115 @@
+%% take openVSP Aero output csv and output total lift
+
+% -3 degree twist
+% Wing Area: 1680
+
+S = 1680;      % wing area [ft^2]
+span = 140;    % span [ft]
+rt_c = 12;     % reference length [ft]
+W = 180000;    % weight [lbf]
+AoA = [-9,-6,-3,0,3,6,9]
+
+% ===================== CRUISE ======================
+% input Cl vs AoA data with no flap deflection, find the incidence so L=W
+cr.Cl = [];   % vary w AoA
+cr.v_mph = 475;
+
+[cr.rho, cr.mu, cr.Re] = calcISA(0, rt_c, cr.v_mph);
+
+cr.v_fts = cr.v_mph * 1.4666666667;
+cr.L = (0.5 * cr.rho * cr.v_fts^2 * S) .* cr.Cl;
+cr.L_W = cr.L ./ W;
+cr.AoA = interp1(AoA, cr.L_W)
+
+% ===================== TAKEOFF =====================
+% using the cruise incidence, find necessary Cl so plane takes off at 145
+% mph
+
+to.Cl = [2 2 2 2 2 2 2 2];
+to.v_mph = 145;
+
+[to.rho, to.mu, to.Re] = calcISA(0, rt_c, to.v_mph);
+
+to.v_fts = to.v_mph * 1.4666666667;
+to.L = 0.5 * to.rho * to.v_fts^2 * S * to.Cl;
+to.L_W = to.L / W;
+
+
+
+% ===================== PRINT =======================
+fprintf('\n=============== AIRCRAFT REFERENCE ===============\n');
+fprintf('Wing Area (S)        : %.1f ft^2\n', S);
+fprintf('Span (b)             : %.1f ft\n', span);
+fprintf('Reference Length     : %.2f ft\n', rt_c);
+fprintf('Weight (W)           : %.0f lbf\n', W);
+fprintf('-3 deg twist\n')
+
+fprintf('\n=============== TAKEOFF CONDITION ===============\n');
+fprintf('Velocity             : %.1f mph (%.1f ft/s)\n', to.v_mph, to.v_fts);
+fprintf('Lift Coefficient     : %.2f\n', to.Cl);
+fprintf('Density              : %.5f slug/ft^3\n', to.rho);
+fprintf('Viscosity            : %.3e slug/(ft*s)\n', to.mu);
+fprintf('Reynolds Number      : %.3e\n', to.Re);
+table('VariableNames',"AoA, Lift, L/W")
+fprintf('Lift                 : %.0f lbf\n', to.L);
+fprintf('L/W                  : %.3f\n', to.L_W);
+
+fprintf('\n=============== CRUISE CONDITION ================\n');
+fprintf('Velocity             : %.1f mph (%.1f ft/s)\n', cr.v_mph, cr.v_fts);
+fprintf('Lift Coefficient     : %.2f\n', cr.Cl);
+fprintf('Density              : %.5f slug/ft^3\n', cr.rho);
+fprintf('Viscosity            : %.3e slug/(ft*s)\n', cr.mu);
+fprintf('Reynolds Number      : %.3e\n', cr.Re);
+fprintf('Lift                 : %.0f lbf\n', cr.L);
+fprintf('L/W                  : %.3f\n', cr.L_W);
+fprintf('Needed AoA for L/W = 1:%.1f'\n, cr.AoA)
+fprintf('\n=================================================\n');
+
+
+function [rho, mu, Re] = calcISA(h_ft, Lref_ft, V_fts)
+% calcISA  ISA troposphere in imperial units
+%
+% Inputs
+%   h_ft    - altitude [ft]
+%   Lref_ft - reference length [ft] (optional, for Reynolds number)
+%   V_fts   - speed [fts] (optional, for Reynolds number)
+%
+% Outputs
+%   rho - air density [slug/ft^3]
+%   mu  - dynamic viscosity [slug/(ft*s)]
+%   Re  - Reynolds number [-] (NaN if not requested)
+%
+% Notes
+%   This is the standard troposphere model, good to about 36,089 ft.
+
+    % ISA constants (imperial)
+    T0 = 518.67;      % sea level temperature [R]
+    L  = 0.00356616;  % lapse rate [R/ft]
+    P0 = 2116.22;     % sea level pressure [lbf/ft^2]
+    g  = 32.174;      % gravity [ft/s^2]
+    R  = 1716.59;     % gas constant for dry air [ft*lbf/(slug*R)]
+
+    % Dynamic viscosity constants (Sutherland's law)
+    mu0 = 3.737e-7;   % reference viscosity [slug/(ft*s)] at T0
+    S   = 198.72;     % Sutherland constant [R]
+
+    % Temperature at altitude
+    T = T0 - L*h_ft;
+
+    if T <= 0
+        error('Altitude is outside the valid range for this simple ISA model.');
+    end
+
+    % Pressure and density
+    P = P0 * (T/T0)^(g/(L*R));
+    rho = P / (R*T);
+
+    % Dynamic viscosity
+    mu = mu0 * (T/T0)^(3/2) * (T0 + S) / (T + S);
+
+    % Optional Reynolds number
+    Re = NaN;
+    if nargin >= 3
+        Re = rho * V_fts * Lref_ft / mu;
+    end
+end
