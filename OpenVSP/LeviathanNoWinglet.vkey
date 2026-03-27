@@ -1,19 +1,15 @@
 # VSPGEOM v3 Tag Key File
-C:/Users/Kizer/OneDrive/Documents/GitHub/T2_468_ASW_Plane/OpenVSP/LeviathanNoWinglet.vspgeom
-5
+C:/Users/kizer/OneDrive/Documents/GitHub/T2_468_ASW_Plane/OpenVSP/LeviathanNoWinglet.vspgeom
+3
 
 # part#,geom#,surf#,gname,gid,thick,plate,copy#,geomcopy#
 1,1,0,FuselageGeom_S,QFQZAKJGQM,1,0,1,2
 2,0,0,Tail_C,XTGSOPCXWY,0,3,1,1
-3,0,1,Tail_C,XTGSOPCXWY,0,3,2,1
 4,2,0,WingGeom_C,MRFFDZNQAS,0,3,1,3
-5,2,1,WingGeom_C,MRFFDZNQAS,0,3,2,3
 
-5
+3
 
 # tag#,part#,ssname1,ssname2,...,ssid1,ssid2,...
 1,1
 2,2
-3,3
-4,4
-5,5
+3,4
