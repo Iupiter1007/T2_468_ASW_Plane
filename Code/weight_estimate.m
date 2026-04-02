@@ -18,8 +18,8 @@ Mach_cruise = 0.75;
 h_cruise_ft = 35000;
 
 % Aero assumptions
-LD_cruise = 17;
-LD_loiter = 16;
+LD_cruise = 20;
+LD_loiter = 20;
 
 % TSFC in 1/hr for Breguet
 c_cruise = 0.55;
@@ -30,8 +30,10 @@ TOFL_req_ft = 6000;
 LFL_req_ft  = 5000;
 
 % High-lift assumptions
-CLmax_TO = 1.8;
-CLmax_L  = 1.6;
+% CLmax_TO = 1.8;
+% CLmax_L  = 1.6;
+CLmax_TO = 2.2;
+CLmax_L  = 2;
 
 % Landing mass fraction
 mML_over_mMTO = 0.78;

@@ -123,6 +123,8 @@ for outer = 1:40
     W0_N = lb_to_N(W0);
 
     % 4) Fixed wing area -> actual wing loading
+    % per Raymer Table 5.5 (pg 84) W/S around 120 expected for bomber
+    % chapter 19 discuss optimize w/s and t/w
     S_m2  = S_fixed_m2;
     S_ft2 = S_fixed_ft2;
 
@@ -430,17 +432,186 @@ function W0 = solve_W0_from_fractions(W_fixed, Wf_W0, A, C, W0_init, tol)
     end
 end
 
-function WS_MTO_max_Nm2 = WS_from_landing_Loftin_SI(LFL_ft, sigma_L, CLmax_L, mML_over_mMTO, kL)
-    g0 = 9.80665;
-    sL_m = ft_to_m(LFL_ft);
-    mS_ML_max      = kL * sigma_L * CLmax_L * sL_m;
-    mS_MTO_max_L   = mS_ML_max / mML_over_mMTO;
-    WS_MTO_max_Nm2 = mS_MTO_max_L * g0;
+function [WS_lim_Nm2, Sref_m2, details] = wingSizingRaymerConstraintSI( ...
+    TOFL_ft, LFL_ft, ...
+    sigma_TO, sigma_L, ...
+    CLmax_TO, CLg_TO, CD0_TO, K_TO, mu_TO, TW_TO, ...
+    CLmax_L, mL_over_mTO, Sa_ft, landingFactor, WTO_N)
+%WINGSIZINGRAYMERCONSTRAINTSI
+% Sizes wing loading and wing area from Raymer-style takeoff and landing constraints.
+%
+% IMPORTANT:
+%   - Takeoff uses the Raymer ground-roll equation only.
+%   - If TOFL_ft is a full field length to clear a 50 ft obstacle, you should
+%     add rotation + transition + climb separately.
+%   - Landing uses Raymer's simplified wing-loading relation.
+
+    if nargin < 14 || isempty(landingFactor)
+        landingFactor = 1.0;   % 1.0 = basic Raymer relation
+    end
+
+    rhoSL = 1.225; % kg/m^3
+    g0    = 9.80665;
+
+    % Takeoff wing-loading limit from Raymer ground-roll equation
+    WS_takeoff_max_Nm2 = WS_from_takeoff_Raymer_SI( ...
+        TOFL_ft, sigma_TO, CLmax_TO, CLg_TO, CD0_TO, K_TO, mu_TO, TW_TO);
+
+    % Landing wing-loading limit from Raymer approximate landing relation
+    WS_landing_max_Nm2 = WS_from_landing_Raymer_SI( ...
+        LFL_ft, sigma_L, CLmax_L, mL_over_mTO, Sa_ft, landingFactor);
+
+    % Limiting wing loading
+    WS_lim_Nm2 = min(WS_takeoff_max_Nm2, WS_landing_max_Nm2);
+
+    % Wing area from takeoff weight
+    Sref_m2 = WTO_N / WS_lim_Nm2;
+
+    % Pack outputs
+    details = struct();
+    details.WS_takeoff_max_Nm2 = WS_takeoff_max_Nm2;
+    details.WS_landing_max_Nm2 = WS_landing_max_Nm2;
+    details.limiting_case = "takeoff";
+    if WS_landing_max_Nm2 < WS_takeoff_max_Nm2
+        details.limiting_case = "landing";
+    end
+    details.WTO_N = WTO_N;
+    details.Sref_m2 = Sref_m2;
 end
 
-function TW_req = TW_from_takeoff_Loftin_SI(TOFL_ft, sigma_TO, CLmax_TO, mS_MTO, kTO)
-    sTO_m = ft_to_m(TOFL_ft);
-    TW_req = mS_MTO * (kTO * sigma_TO) / (sTO_m * CLmax_TO);
+function WS_max_Nm2 = WS_from_takeoff_Raymer_SI( ...
+    TOFL_ft, sigma_TO, CLmax_TO, CLg_TO, CD0_TO, K_TO, mu_TO, TW_TO)
+% Solve for max W/S (N/m^2) such that Raymer takeoff ground roll <= TOFL_ft.
+%
+% Uses:
+%   Sg = 1/(2 g Ka) * ln(1 + (Ka/Kt) * Vto^2)
+%   Kt = T/W - mu
+%   Ka = rho/(2*(W/S)) * (mu*CLg - CD0 - K*CLg^2)
+%   Vto = 1.1 * sqrt(2*(W/S)/(rho*CLmax_TO))
+
+    g0    = 9.80665;
+    rhoSL = 1.225;           % kg/m^3
+    rho   = sigma_TO * rhoSL; % takeoff density
+
+    target_m = ft_to_m(TOFL_ft);
+
+    if TW_TO <= mu_TO
+        error('Takeoff infeasible: T/W must exceed mu_TO.');
+    end
+
+    % Residual function: Sg(WS) - target
+    f = @(WS) takeoff_residual(WS, target_m, rho, CLmax_TO, CLg_TO, ...
+                              CD0_TO, K_TO, mu_TO, TW_TO, g0);
+
+    % Bracket the solution
+    WS_lo = 1.0;      % N/m^2
+    WS_hi = 2.0e5;    % N/m^2
+
+    f_lo = f(WS_lo);
+    f_hi = f(WS_hi);
+
+    % Expand upper bound until we bracket the root
+    nGrow = 0;
+    while ~(isfinite(f_lo) && isfinite(f_hi) && f_lo <= 0 && f_hi >= 0)
+        if ~isfinite(f_hi) || f_hi < 0
+            WS_hi = WS_hi * 2.0;
+            f_hi = f(WS_hi);
+        elseif f_lo > 0
+            WS_lo = WS_lo / 2.0;
+            f_lo = f(WS_lo);
+        end
+
+        nGrow = nGrow + 1;
+        if nGrow > 80 || WS_hi > 5.0e7 || WS_lo < 1.0e-8
+            error('Could not bracket the takeoff wing-loading solution.');
+        end
+    end
+
+    % Bisection
+    for k = 1:100
+        WS_mid = 0.5 * (WS_lo + WS_hi);
+        f_mid  = f(WS_mid);
+
+        if ~isfinite(f_mid)
+            WS_lo = WS_mid;
+            continue;
+        end
+
+        if f_mid > 0
+            WS_hi = WS_mid;
+        else
+            WS_lo = WS_mid;
+        end
+    end
+
+    WS_max_Nm2 = 0.5 * (WS_lo + WS_hi);
+end
+
+function r = takeoff_residual(WS, target_m, rho, CLmax_TO, CLg_TO, ...
+                              CD0_TO, K_TO, mu_TO, TW_TO, g0)
+% Residual for root finding: Sg(WS) - target
+
+    if WS <= 0
+        r = Inf;
+        return;
+    end
+
+    Kt = TW_TO - mu_TO;
+    if Kt <= 0
+        r = Inf;
+        return;
+    end
+
+    Vto = 1.1 * sqrt(2.0 * WS / (rho * CLmax_TO));
+
+    Ka = (rho / (2.0 * WS)) * (mu_TO * CLg_TO - CD0_TO - K_TO * CLg_TO^2);
+
+    % Fallback if Ka is numerically tiny
+    if abs(Ka) < 1e-12
+        Sg = Vto^2 / (2.0 * g0 * Kt);
+        r = Sg - target_m;
+        return;
+    end
+
+    arg = 1.0 + (Ka / Kt) * Vto^2;
+
+    if arg <= 0
+        r = Inf;
+        return;
+    end
+
+    Sg = log(arg) / (2.0 * g0 * Ka);
+    r  = Sg - target_m;
+end
+
+function WS_TO_max_Nm2 = WS_from_landing_Raymer_SI( ...
+    LFL_ft, sigma_L, CLmax_L, mL_over_mTO, Sa_ft, landingFactor)
+% Raymer landing approximation:
+%   S_landing = landingFactor * 80 * (W/S)/(sigma * CLmax) + Sa
+%
+% This is the classic constraint-analysis form in English units.
+% It returns W/S in N/m^2 after converting from lb/ft^2.
+
+    if mL_over_mTO <= 0 || mL_over_mTO > 1.0
+        error('mL_over_mTO must be in (0, 1].');
+    end
+
+    if LFL_ft <= Sa_ft
+        error('Landing field length must be greater than Sa_ft.');
+    end
+
+    % Solve in lb/ft^2 first because the Raymer constant "80" is in English units.
+    WS_L_lbft2 = (LFL_ft - Sa_ft) * sigma_L * CLmax_L / (80.0 * landingFactor);
+
+    % Convert to N/m^2
+    WS_L_Nm2 = WS_L_lbft2 * 47.88025898;
+
+    % Convert from landing weight to takeoff weight
+    WS_TO_max_Nm2 = WS_L_Nm2 / mL_over_mTO;
+end
+
+function m = ft_to_m(ft)
+    m = ft * 0.3048;
 end
 
 function V = mach_to_tas_knots(M, h_ft)
